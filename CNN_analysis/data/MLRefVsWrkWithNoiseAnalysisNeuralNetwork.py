@@ -148,7 +148,7 @@ class featureExtractor:
         return features, labels
 
 
-def build_cnn(kernel_size=(3,), dropout_rate=0.75, n=2688):
+def build_cnn1D(kernel_size=(3,), dropout_rate=0.75, n=2688):
     model = Sequential()
 
     model.add(Conv1D(filters=8, kernel_size=kernel_size, activation='relu', input_shape=(n,1)))
@@ -175,32 +175,39 @@ def build_cnn(kernel_size=(3,), dropout_rate=0.75, n=2688):
 
     return model
 
+def build_cnn2D(kernel_size=(3, 3), dropout_rate=0.2):
+    model = Sequential()
 
-def augment_data(x, y, shape_y):
-    x_len = len(x)
+    model.add(Conv2D(filters=32, kernel_size=kernel_size, activation='relu', input_shape=(192, 14,1)))
+    model.add(Conv2D(filters=32, kernel_size=kernel_size, activation='relu'))
 
-    aug_x = x
-    aug_y = y
+    model.add(Dropout(dropout_rate))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
 
-    for i in range(10 * x_len):
-        noise = np.random.normal(0.0, 1.0, shape_y)
-        aug = x[i % x_len] * noise
-        aug = np.expand_dims(aug, axis=0)
+    # model.add(Conv2D(filters=64, kernel_size=kernel_size, activation='relu'))
+    model.add(Conv2D(filters=64, kernel_size=kernel_size, strides=2, activation='relu'))
 
-        label = np.expand_dims(y[i % x_len], axis=0)
+    model.add(Dropout(dropout_rate))
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
 
-        aug_x = np.append(aug_x, aug, axis=0)
-        aug_y = np.append(aug_y, label, axis=0)
+    model.add(Flatten())
 
-    return (aug_x, aug_y)
+    model.add(Dense(500, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(2, activation='softmax'))
 
+    model.compile(loss='categorical_crossentropy',
+                optimizer='adam',
+                metrics=['accuracy'])
+
+    return model
 
 if __name__ == '__main__':
     plt.close("all")
 
     # USTAWIENIA:
     featureType = "logvar"  # typ cechy do wyboru: logvar, pearsonr, lyapunov, all
-    classifierID = "CNN"  # zdefiniowane przez użytkownika
+    classifierID = "CNN1D"  # zdefiniowane przez użytkownika
     f_bands = np.array([[1, 4], [4, 8], [8, 12], [12, 16], [16, 20], [20, 24], [24, 28], [32, 36], [36, 40], [8, 30]])
     # PARAMETRY PRZESZUKIWANIA
     maxfFeatures = 9  # max liczba cech do wybrania...można wszystkie sprawdzić, ale za mało przykładow i nie wyjdzie
@@ -215,11 +222,13 @@ if __name__ == '__main__':
     val3 = 0.05
 
     # for subject_id in range(1, noSubjects + 1):
-    for subject_id in range(9 * 20 * 19):
+    # for subject_id in range(9 * 20 * 19):     # dla plikow *.npy, o nazwach subjectNoise_1_repNo_0_amp_0.050000.csv
+    for subject_id in range(11):                # dla plikow *.csv, o nazwach subject1.csv"
         # filename = "subjectNoiseRefVsWrk%d.npy" % (subject_id)  # subjectNoise_1_repNo_0_amp_0.050000.csv
         # filename = "subjectNoise_1_repNo_0_amp_0.050000.npy"
         
-        filename = "subjectNoise_%d_repNo_%d_amp_%f.npy" % (val1, val2, val3)
+        # filename = "subjectNoise_%d_repNo_%d_amp_%f.npy" % (val1, val2, val3)
+        filename = "subject%d.csv" % (subject_id + 1)
         
         if val1 >= 10:
             break
@@ -236,7 +245,8 @@ if __name__ == '__main__':
 
         # data = read_csv(filename, header=0)
         try:
-            data = pd.DataFrame(np.load(filename))
+            # data = pd.DataFrame(np.load(filename))
+            data = pd.DataFrame(pd.read_csv(filename, names=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]))
         except FileNotFoundError:
             print("File: %s not found. Skipping." % (filename))
             continue
@@ -245,18 +255,24 @@ if __name__ == '__main__':
         signal = data.values[:, range(0, 14)]
         reflab = data.values[:, 14]
         wrklab = data.values[:, 15]
-        sampleId = data.values[:, 16]
+        # sampleId = data.values[:, 16]
+        sampleId = subject_id
 
         noEvents = int(reflab.max())
 
         # podziel caly sygnal na probki (tylko dla sieci konwolucyjnej)
         train_conv = []
         labels_conv = []
+        labels_conv_categorical = []
 
-        if classifierID == "CNN":
+        if classifierID == "CNN1D":
             for i in range(noEvents):
-                sample1 = data.loc[(data[14] == i + 1) & (data[16] == int(sampleId.max())), range(0, 14)]    # kolumna 14 - czas referencyjny (klasa 1)
-                sample2 = data.loc[(data[15] == i + 1) & (data[16] == int(sampleId.max())), range(0, 14)]    # kolumna 15 - rekcja na bodziec (klasa 2)
+                # dla danych zaszumionych (z *.npy):
+                # sample1 = data.loc[(data[14] == i + 1) & (data[16] == int(sampleId.max())), range(0, 14)]    # kolumna 14 - czas referencyjny (klasa 1)
+                # sample2 = data.loc[(data[15] == i + 1) & (data[16] == int(sampleId.max())), range(0, 14)]    # kolumna 15 - rekcja na bodziec (klasa 2)
+                # dla danych oryginalnych (*csv):
+                sample1 = data.loc[(data[14] == i + 1), range(0, 14)]    # kolumna 14 - czas referencyjny (klasa 1)
+                sample2 = data.loc[(data[15] == i + 1), range(0, 14)]    # kolumna 15 - rekcja na bodziec (klasa 2)
 
                 sample1 = np.transpose(sample1.values)
                 sample2 = np.transpose(sample2.values)
@@ -277,13 +293,14 @@ if __name__ == '__main__':
             train_conv = ss.fit_transform(train_conv)
 
             (x, y) = np.shape(train_conv)
-            (train_conv, labels_conv) = augment_data(train_conv, labels_conv, y)
 
             train_conv = np.expand_dims(train_conv, axis=2)
 
             labels_conv_categorical = to_categorical(labels_conv, 2)
 
         # wybrać jeden z przykładow lub dopisać jakis własny
+        estimators = []
+        params = []
         if classifierID == "LDA":  # 1
             estimators = [('prep', StandardScaler()), ('fsel', SelectKBest()),
                           ('clf', LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'))]
@@ -322,12 +339,16 @@ if __name__ == '__main__':
                       'clf__max_features': np.arange(1, 140, 10), 'clf__min_samples_split': np.arange(1, 15, 3),
                       'clf__oob_score': [True, False]}
 
-        if classifierID == "CNN":
+        if classifierID == "CNN1D":  #6
             (x, y, z) = np.shape(train_conv)
-            estimators = [('prep', None), ('fsel', None), ('clf', KerasClassifier(build_fn=build_cnn))]
+            estimators = [('prep', None), ('fsel', None), ('clf', KerasClassifier(build_fn=build_cnn1D))]
             params = {'clf__kernel_size': [(4,)], 'clf__dropout_rate': [0.6], 'clf__n': [y],
                         'clf__batch_size': [6], 'clf__epochs': [6, 16],'clf__verbose': [1]}
 
+        if classifierID == "CNN2D":  #7
+            estimators = [('prep', None), ('fsel', None), ('clf', KerasClassifier(build_fn=build_cnn2D))]
+            params = {'clf__kernel_size': [(3, 3)], 'clf__dropout_rate': [0.5],
+                        'clf__batch_size': [6], 'clf__epochs': [16], 'clf__verbose': [1]}
 
         # filtruj sygnał: DOCELOWO BĘDZIE ZASZYTE W FBCSP
         SPS = 128
@@ -339,7 +360,8 @@ if __name__ == '__main__':
                               nyq=64)
             fsig[:, :, fid] = dsp.filtfilt(filt, 1, signal.transpose())
         # WALIDACJA LEAVE-ONE-OUT (STRATIFIED)
-        noRepetitedSignals = int(sampleId.max()) + 1
+        # noRepetitedSignals = int(sampleId.max()) + 1
+        noRepetitedSignals = int(sampleId) + 1
         acc2 = np.zeros((noEvents, noRepetitedSignals *2 ))
         dfSelFeat = DataFrame([]).transpose()
         dfBestParams = DataFrame([]).transpose()
@@ -350,7 +372,7 @@ if __name__ == '__main__':
 
             train_id = np.setdiff1d(range(0, noEvents * noRepetitedSignals), test_id)
             # wyznacz CSP (ale tylko na treningu)
-            oCSP = FBCSP(noBands);
+            oCSP = FBCSP(noBands)
             oCSP.fit(fsig[:, (reflab > 0) & (reflab != test_id), :], fsig[:, (wrklab > 0) & (wrklab != test_id), :])
             cspsig = oCSP.transform(fsig)
             # print(np.shape(cspsig))
@@ -358,7 +380,9 @@ if __name__ == '__main__':
 
             # dla każdego triala wyznacz energie/ceche
             oFE = featureExtractor(featureType)
-            features, labels = oFE.transform(cspsig, reflab, wrklab, sampleId)  # type: (ndarray, ndarray)
+
+            if classifierID != "CNN2D" and classifierID != "CNN1D":
+                features, labels = oFE.transform(cspsig, reflab, wrklab, sampleId)  # type: (ndarray, ndarray)
 
             # print(np.shape(features))
             # klasyfikuj - > jako pipeline
@@ -373,7 +397,7 @@ if __name__ == '__main__':
                                  verbose=0, pre_dispatch='2*n_jobs',
                                  error_score=np.NaN, return_train_score=True)
             
-            if classifierID == "CNN":
+            if classifierID == "CNN1D" or classifierID == "CNN2D":
                 tuner.fit(train_conv[indTrain, :], labels_conv_categorical[indTrain])
 
                 acc1 = tuner.score(train_conv[indTrain, :], labels_conv_categorical[indTrain])
@@ -397,7 +421,7 @@ if __name__ == '__main__':
 
             K.clear_session()
 
-        dfBestParams.index = range(0, noEvents)# * noRepetitedSignals)
+        dfBestParams.index = range(0, noEvents)     # * noRepetitedSignals)
         dfBestParams.to_csv(
             ".\%s\%s\%s_sid_%d_%s_bestParams.csv" % (classifierID, featureType, classifierID, subject_id, featureType))
 
