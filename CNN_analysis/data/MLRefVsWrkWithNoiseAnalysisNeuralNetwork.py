@@ -179,7 +179,7 @@ def build_cnn1D(kernel_size=(3,), dropout_rate=0.75, n=2688):
 def build_cnn2D(kernel_size=(3, 3), dropout_rate=0.2):
     model = Sequential()
 
-    model.add(Conv2D(filters=32, kernel_size=kernel_size, activation='relu', input_shape=(192, 14,1)))
+    model.add(Conv2D(filters=32, kernel_size=kernel_size, activation='relu', input_shape=(192, 14, 1)))
     model.add(Conv2D(filters=32, kernel_size=kernel_size, activation='relu'))
 
     model.add(Dropout(dropout_rate))
@@ -209,7 +209,7 @@ if __name__ == '__main__':
 
     # USTAWIENIA:
     featureType = "logvar"  # typ cechy do wyboru: logvar, pearsonr, lyapunov, all
-    classifierID = "CNN1D"  # zdefiniowane przez użytkownika
+    classifierID = "CNN2D"  # zdefiniowane przez użytkownika
     f_bands = np.array([[1, 4], [4, 8], [8, 12], [12, 16], [16, 20], [20, 24], [24, 28], [32, 36], [36, 40], [8, 30]])
     # PARAMETRY PRZESZUKIWANIA
     maxfFeatures = 9  # max liczba cech do wybrania...można wszystkie sprawdzić, ale za mało przykładow i nie wyjdzie
@@ -267,7 +267,7 @@ if __name__ == '__main__':
         labels_conv = []
         labels_conv_categorical = []
 
-        if classifierID == "CNN1D":
+        if classifierID == "CNN1D" or classifierID == "CNN2D":
             for i in range(noEvents):
                 # dla danych zaszumionych (z *.npy):
                 # sample1 = data.loc[(data[14] == i + 1) & (data[16] == int(sampleId.max())), range(0, 14)]    # kolumna 14 - czas referencyjny (klasa 1)
@@ -276,14 +276,21 @@ if __name__ == '__main__':
                 sample1 = data.loc[(data[14] == i + 1), range(0, 14)]    # kolumna 14 - czas referencyjny (klasa 1)
                 sample2 = data.loc[(data[15] == i + 1), range(0, 14)]    # kolumna 15 - rekcja na bodziec (klasa 2)
 
-                sample1 = np.transpose(sample1.values)
-                sample2 = np.transpose(sample2.values)
+                if classifierID == "CNN1D":
+                    sample1 = np.transpose(sample1.values)
+                    sample2 = np.transpose(sample2.values)
 
-                (nx1, ny1) = np.shape(sample1)
-                (nx2, ny2) = np.shape(sample2)
+                    (nx1, ny1) = np.shape(sample1)
+                    (nx2, ny2) = np.shape(sample2)
 
-                train_conv.append(np.reshape(sample1, nx1 * ny1))
-                train_conv.append(np.reshape(sample2, nx2 * ny2))
+                    train_conv.append(np.reshape(sample1, nx1 * ny1))
+                    train_conv.append(np.reshape(sample2, nx2 * ny2))
+                else:
+                    sample1 = sample1.values[:, range(0, 14)]
+                    sample2 = sample2.values[:, range(0, 14)]
+
+                    train_conv.append(sample1)
+                    train_conv.append(sample2)
 
                 labels_conv.append(0)
                 labels_conv.append(1)
@@ -292,11 +299,21 @@ if __name__ == '__main__':
             labels_conv = np.array(labels_conv)
 
             ss = StandardScaler()
-            train_conv = ss.fit_transform(train_conv)
 
-            (x, y) = np.shape(train_conv)
+            axis_dim = 0
+            if classifierID == "CNN1D":
+                train_conv = ss.fit_transform(train_conv)
 
-            train_conv = np.expand_dims(train_conv, axis=2)
+                axis_dim = 2
+            elif classifierID == "CNN2D":
+                for i in range(len(train_conv)):
+                    a = train_conv[i]
+                    train_conv[i] = ss.fit_transform(train_conv[i])
+                axis_dim = 3
+
+            train_conv = np.expand_dims(train_conv, axis=axis_dim)
+
+            # (x, y) = np.shape(train_conv)
 
             labels_conv_categorical = to_categorical(labels_conv, 2)
 
