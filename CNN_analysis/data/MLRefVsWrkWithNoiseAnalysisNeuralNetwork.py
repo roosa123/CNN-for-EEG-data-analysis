@@ -26,7 +26,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from keras.wrappers.scikit_learn import KerasClassifier
 from keras.models import Sequential
-from keras.layers import Dense, Conv1D, Flatten, Dropout, MaxPooling1D
+from keras.layers import Dense, Conv1D, Flatten, Dropout, MaxPooling1D, Conv2D, MaxPooling2D
 from keras.utils import to_categorical
 from keras import backend as K
 
@@ -141,8 +141,8 @@ class featureExtractor:
                     features[tid, :] = np.hstack((a1, a2))
                     features[tid + noEvents * noRepetitedSignals, :] = np.hstack((b1, b2))
 
-                labels[tid + rid * noEvents] = 0;
-                labels[tid + rid * noEvents + noEvents * noRepetitedSignals] = 1;
+                labels[tid + rid * noEvents] = 0
+                labels[tid + rid * noEvents + noEvents * noRepetitedSignals] = 1
         # Log.Log(features)
         # Log.Log(labels)
         return features, labels
@@ -175,6 +175,7 @@ def build_cnn1D(kernel_size=(3,), dropout_rate=0.75, n=2688):
 
     return model
 
+
 def build_cnn2D(kernel_size=(3, 3), dropout_rate=0.2):
     model = Sequential()
 
@@ -201,6 +202,7 @@ def build_cnn2D(kernel_size=(3, 3), dropout_rate=0.2):
                 metrics=['accuracy'])
 
     return model
+
 
 if __name__ == '__main__':
     plt.close("all")
@@ -246,7 +248,7 @@ if __name__ == '__main__':
         # data = read_csv(filename, header=0)
         try:
             # data = pd.DataFrame(np.load(filename))
-            data = pd.DataFrame(pd.read_csv(filename, names=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]))
+            data = pd.DataFrame(read_csv(filename, names=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]))
         except FileNotFoundError:
             print("File: %s not found. Skipping." % (filename))
             continue
@@ -396,7 +398,7 @@ if __name__ == '__main__':
                                  n_jobs=1, iid=True, refit=True, cv=None,
                                  verbose=0, pre_dispatch='2*n_jobs',
                                  error_score=np.NaN, return_train_score=True)
-            
+
             if classifierID == "CNN1D" or classifierID == "CNN2D":
                 tuner.fit(train_conv[indTrain, :], labels_conv_categorical[indTrain])
 
@@ -411,7 +413,7 @@ if __name__ == '__main__':
             dfParams = DataFrame.from_dict(tuner.best_params_, orient="index")
             dfBestParams = dfBestParams.append(dfParams.transpose())
 
-            if classifierID != "CNN":
+            if classifierID != "CNN1D" and classifierID != "CNN2D":
                 dfSelFeat = dfSelFeat.append(
                     DataFrame(tuner.best_estimator_.named_steps['fsel'].get_support(indices=True)).transpose())
                     # print(tuner.best_estimator_.named_steps['fsel'].get_support(indices=True))
